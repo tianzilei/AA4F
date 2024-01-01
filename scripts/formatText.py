@@ -27,7 +27,7 @@ def formattext(id):
     # relative to absolute path
     # https://stackoverflow.com/questions/2401628/open-file-in-w-mode-ioerror-errno-2-no-such-file-or-directory
     idpath = os.path.join(wkdir, 'temp', id+'.txt')
-    with open(os.path.join(idpath), 'a', encoding='utf-8') as a:
+    with open(idpath, 'a', encoding='utf-8') as a:
         for i in range(len(df)):
             with open(os.path.join(wkdir, guanqia, id, df['filename'][i+1]), 'r', encoding='utf-8') as f:
                 text = f.read()
@@ -88,49 +88,46 @@ def process_lines(lines, i, pattern):
 # 我也不想function套function
 # 下次再改吧
 def clearline(id):
-    try:
-        # 先根据header清理一下
+    # 先根据header清理一下
+    with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'w', encoding='utf-8') as b:
+        with open(os.path.join(wkdir, 'temp', id+'.txt'), 'r', encoding='utf-8') as a:
+            for line in a:
+                # header是基本固定的，如果出现问题也要根据实际情况写一下header
+                b.write(clear(os.path.join(wkdir, 'scripts\header.txt'), line))
+    # 再把同一个人的对话合并一下
+    with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as a:
+            lines = a.readlines()
+            # 分成两种情况，一种是[name=，一种是[multiline
+            # 但是还有一种是玩家选择的，没有做，从实际情况来讲这行去掉了也不影响阅读体验，下次再补充
+            for i in range(len(lines)):
+                if lines[i].startswith('[name='):
+                    lines = process_lines(lines, i, r'\[name="(.*)"\]')
+                if lines[i].startswith('[multiline'):
+                    lines = process_lines(lines, i, r'\[multiline.*name="(.*)".*\]')
+                # write to file
+                f.write(lines[i])
+    # repeat the above process until id_xml.txt not changed
+    while True:
         with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'w', encoding='utf-8') as b:
-            with open(os.path.join(wkdir, 'temp', id+'.txt'), 'r', encoding='utf-8') as a:
-                for line in a:
-                    # header是基本固定的，如果出现问题也要根据实际情况写一下header
-                    b.write(clear(os.path.join(wkdir, 'scripts\header.txt'), line))
-        # 再把同一个人的对话合并一下
-        with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as f:
-            with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as a:
+            with open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8') as a:
                 lines = a.readlines()
-                # 分成两种情况，一种是[name=，一种是[multiline
-                # 但是还有一种是玩家选择的，没有做，从实际情况来讲这行去掉了也不影响阅读体验，下次再补充
                 for i in range(len(lines)):
                     if lines[i].startswith('[name='):
                         lines = process_lines(lines, i, r'\[name="(.*)"\]')
                     if lines[i].startswith('[multiline'):
                         lines = process_lines(lines, i, r'\[multiline.*name="(.*)".*\]')
                     # write to file
-                    f.write(lines[i])
-        # repeat the above process until id_xml.txt not changed
-        while True:
-            with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'w', encoding='utf-8') as b:
-                with open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8') as a:
-                    lines = a.readlines()
-                    for i in range(len(lines)):
-                        if lines[i].startswith('[name='):
-                            lines = process_lines(lines, i, r'\[name="(.*)"\]')
-                        if lines[i].startswith('[multiline'):
-                            lines = process_lines(lines, i, r'\[multiline.*name="(.*)".*\]')
-                        # write to file
-                        b.write(lines[i])
-            # if id_xml.txt.bak and id_xml.txt are the same, break
-            if open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8').read() == open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8').read():
-                break
-            else:
-                # if not the same, copy id_xml.txt.bak to id_xml.txt
-                with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as b:
-                    with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as a:
-                        a.write(b.read())
-    except:
-        # 如果出现问题，把bak文件删除，再执行一次
-        print('error')
+                    b.write(lines[i])
+        # if id_xml.txt.bak and id_xml.txt are the same, break
+        if open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8').read() == open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8').read():
+            break
+        else:
+            # if not the same, copy id_xml.txt.bak to id_xml.txt
+            with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as b:
+                with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as a:
+                    a.write(b.read())
+
 
 # azure ssml的要求是45段话，所以要把文件分成45段话
 # 如果需要的话根据这里调整一下
