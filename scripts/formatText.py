@@ -10,18 +10,25 @@ guanqia = r"ArknightsGameData\zh_CN\gamedata\story\[uc]info\activities"
 # https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts
 speech_config = speechsdk.SpeechConfig(subscription=os.environ.get('SPEECH_KEY'), region=os.environ.get('SPEECH_REGION'))
 speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
+id = 'act25side'
 
 # 先把文件写到一起，操作一个文件要方便一些
 def formattext(id):
     # 手动建立一个同名csv文件，第一个是顺序，因为游戏资源里面的文件名不是按照顺序排列的，第二个是文件名+后缀(要path.join用)
-    # 如孤星(id)第一个是st01，第二个是01_beg
-    df = pd.read_csv(os.path.join(wkdir,'scripts',id+'.csv'), index_col=0, header=0)
-    # 下面有的地方用的是open(r)，有的是open(a)，避免多写几次进去，先清理一下
-    if os.path.exists(os.path.join(wkdir, 'temp', id)):
-        os.remove(os.path.join(wkdir, 'temp', id))
-    # 一个简单的for循环，把所有文件写到一起
-    for i in range(len(df)):
-        with open(os.path.join(wkdir, 'temp', id+'.txt'), 'a', encoding='utf-8') as a:
+    df = pd.read_csv(os.path.join(wkdir,'scripts', id+'.csv'), index_col=0, header=0)
+    if os.path.exists(os.path.join(wkdir, 'temp')):
+        shutil.rmtree(os.path.join(wkdir, 'temp'))
+    else:
+        os.makedirs(os.path.join(wkdir, 'temp'))
+        # create a new txt file
+        with open(os.path.join(wkdir, 'temp', id+'.txt'), 'w', encoding='utf-8') as a:
+            pass
+    # for循环，把所有文件写到一起
+    # relative to absolute path
+    # https://stackoverflow.com/questions/2401628/open-file-in-w-mode-ioerror-errno-2-no-such-file-or-directory
+    idpath = os.path.join(wkdir, 'temp', id+'.txt')
+    with open(os.path.join(idpath), 'a', encoding='utf-8') as a:
+        for i in range(len(df)):
             with open(os.path.join(wkdir, guanqia, id, df['filename'][i+1]), 'r', encoding='utf-8') as f:
                 text = f.read()
                 # append text to file
@@ -81,45 +88,49 @@ def process_lines(lines, i, pattern):
 # 我也不想function套function
 # 下次再改吧
 def clearline(id):
-    # 先根据header清理一下
-    with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'w', encoding='utf-8') as b:
-        with open(os.path.join(wkdir, 'temp', id+'.txt'), 'r', encoding='utf-8') as a:
-            for line in a:
-                # header是基本固定的，如果出现问题也要根据实际情况写一下header
-                b.write(clear(os.path.join(wkdir, 'scripts\header.txt'), line))
-    # 再把同一个人的对话合并一下
-    with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as f:
-        with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as a:
-            lines = a.readlines()
-            # 分成两种情况，一种是[name=，一种是[multiline
-            # 但是还有一种是玩家选择的，没有做，从实际情况来讲这行去掉了也不影响阅读体验，下次再补充
-            for i in range(len(lines)):
-                if lines[i].startswith('[name='):
-                    lines = process_lines(lines, i, r'\[name="(.*)"\]')
-                if lines[i].startswith('[multiline'):
-                    lines = process_lines(lines, i, r'\[multiline.*name="(.*)".*\]')
-                # write to file
-                f.write(lines[i])
-    # repeat the above process until id_xml.txt not changed
-    while True:
+    try:
+        # 先根据header清理一下
         with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'w', encoding='utf-8') as b:
-            with open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8') as a:
+            with open(os.path.join(wkdir, 'temp', id+'.txt'), 'r', encoding='utf-8') as a:
+                for line in a:
+                    # header是基本固定的，如果出现问题也要根据实际情况写一下header
+                    b.write(clear(os.path.join(wkdir, 'scripts\header.txt'), line))
+        # 再把同一个人的对话合并一下
+        with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as f:
+            with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as a:
                 lines = a.readlines()
+                # 分成两种情况，一种是[name=，一种是[multiline
+                # 但是还有一种是玩家选择的，没有做，从实际情况来讲这行去掉了也不影响阅读体验，下次再补充
                 for i in range(len(lines)):
                     if lines[i].startswith('[name='):
                         lines = process_lines(lines, i, r'\[name="(.*)"\]')
                     if lines[i].startswith('[multiline'):
                         lines = process_lines(lines, i, r'\[multiline.*name="(.*)".*\]')
                     # write to file
-                    b.write(lines[i])
-        # if id_xml.txt.bak and id_xml.txt are the same, break
-        if open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8').read() == open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8').read():
-            break
-        else:
-            # if not the same, copy id_xml.txt.bak to id_xml.txt
-            with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as b:
-                with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as a:
-                    a.write(b.read())
+                    f.write(lines[i])
+        # repeat the above process until id_xml.txt not changed
+        while True:
+            with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'w', encoding='utf-8') as b:
+                with open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8') as a:
+                    lines = a.readlines()
+                    for i in range(len(lines)):
+                        if lines[i].startswith('[name='):
+                            lines = process_lines(lines, i, r'\[name="(.*)"\]')
+                        if lines[i].startswith('[multiline'):
+                            lines = process_lines(lines, i, r'\[multiline.*name="(.*)".*\]')
+                        # write to file
+                        b.write(lines[i])
+            # if id_xml.txt.bak and id_xml.txt are the same, break
+            if open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8').read() == open(os.path.join(wkdir, 'temp', id+'.xml'), 'r', encoding='utf-8').read():
+                break
+            else:
+                # if not the same, copy id_xml.txt.bak to id_xml.txt
+                with open(os.path.join(wkdir, 'temp', id+'.bak.txt'), 'r', encoding='utf-8') as b:
+                    with open(os.path.join(wkdir, 'temp', id+'.xml'), 'w', encoding='utf-8') as a:
+                        a.write(b.read())
+    except:
+        # 如果出现问题，把bak文件删除，再执行一次
+        print('error')
 
 # azure ssml的要求是45段话，所以要把文件分成45段话
 # 如果需要的话根据这里调整一下
@@ -139,7 +150,7 @@ def tossml(text):
     import pandas as pd
     # <speak version="1.0" xmlns="https://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">
     header = ET.Element('speak', {'version': '1.0', 'xmlns': 'https://www.w3.org/2001/10/synthesis', 'xml:lang': 'zh-CN'})
-    char2voicename = pd.read_csv('char2voicename.csv', header=0, index_col=0)
+    char2voicename = pd.read_csv(os.path.join(wkdir, 'scripts', 'char2voicename.csv'), header=0, index_col=0)
     # for each line
     for line in text:
         # if line not start with '[', delete newline
@@ -189,17 +200,26 @@ def combine_wav(wavdir, wavname):
                 output.writeframes(w.readframes(w.getnframes()))
 
 # function都在上面了，下面开始执行
-id = 'act25side'
+# 生成单独一个文件
 formattext(id)
 clearline(id)
-
+# 到文件夹里面
 if not os.path.exists(os.path.join(wkdir, 'temp', id)):
     os.makedirs(os.path.join(wkdir, 'temp', id))
 shutil.copyfile(os.path.join(wkdir, 'temp', id+'.xml'), os.path.join(wkdir, 'temp', id, id + '.xml'))
 split_file(os.path.join(wkdir, 'temp', id, id+'.xml'))
+# 转换xml
+for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
+    if xml.endswith(".txt"):
+        txt2xml(os.path.join(wkdir, 'temp', id, xml), os.path.join(wkdir, 'temp', id, xml.replace(".txt", ".xml")))
+        # wait until xml file is created
+        while not os.path.exists(os.path.join(wkdir, 'temp', id, xml.replace(".txt", ".xml"))):
+            pass
+        # delete txt file
+        os.remove(os.path.join(wkdir, 'temp', id, xml))
 
 os.remove(os.path.join(wkdir, 'temp', id, id+'.xml'))
-
+# xml to wav
 for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
     if xml.endswith(".xml"):
         # if same name wav was already created, skip
@@ -210,6 +230,5 @@ for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
         # wait until wav file is created
         while not os.path.exists(os.path.join(wkdir, 'temp', id, wav)):
             pass
-
 # combine all wav files into one in the folder
 # combine_wav(os.path.join(wkdir, 'temp', id), id+'.wav')
