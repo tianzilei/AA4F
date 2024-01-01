@@ -1,0 +1,19 @@
+[HEADER
+# [Image里面有文本
+[ImageTween
+[Delay
+[PlaySound
+[SoundVolume
+[charslot
+[stopmusic
+# [Blocker里面有文本
+# [Sticker里面有文本
+[gridbg
+[largebgtween
+[stopsound
+[CameraShake
+[PlayMusic
+# [subtitle里面有文本
+[Background
+[backgroundTween
+[curtain
