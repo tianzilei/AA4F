@@ -10,24 +10,23 @@ guanqia = r"ArknightsGameData\zh_CN\gamedata\story\[uc]info\activities"
 # https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts
 speech_config = speechsdk.SpeechConfig(subscription=os.environ.get('SPEECH_KEY'), region=os.environ.get('SPEECH_REGION'))
 speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-id = 'act25side'
+id = 'act28side'
+
+# 清理temp文件夹，不然会一直append
+if os.path.exists(os.path.join(wkdir, 'temp')):
+    # delete temp folder
+    shutil.rmtree(os.path.join(wkdir, 'temp'))
+    # create temp folder
+    os.makedirs(os.path.join(wkdir, 'temp'))
+else:
+    os.makedirs(os.path.join(wkdir, 'temp'))
 
 # 先把文件写到一起，操作一个文件要方便一些
 def formattext(id):
     # 手动建立一个同名csv文件，第一个是顺序，因为游戏资源里面的文件名不是按照顺序排列的，第二个是文件名+后缀(要path.join用)
-    df = pd.read_csv(os.path.join(wkdir,'scripts', id+'.csv'), index_col=0, header=0)
-    if os.path.exists(os.path.join(wkdir, 'temp')):
-        shutil.rmtree(os.path.join(wkdir, 'temp'))
-    else:
-        os.makedirs(os.path.join(wkdir, 'temp'))
-        # create a new txt file
-        with open(os.path.join(wkdir, 'temp', id+'.txt'), 'w', encoding='utf-8') as a:
-            pass
+    df = pd.read_csv(os.path.join(wkdir,'scripts', id+'.txt'), index_col=0, header=0)
     # for循环，把所有文件写到一起
-    # relative to absolute path
-    # https://stackoverflow.com/questions/2401628/open-file-in-w-mode-ioerror-errno-2-no-such-file-or-directory
-    idpath = os.path.join(wkdir, 'temp', id+'.txt')
-    with open(idpath, 'a', encoding='utf-8') as a:
+    with open(os.path.join(wkdir, 'temp', id+'.txt'), 'a', encoding='utf-8') as a:
         for i in range(len(df)):
             with open(os.path.join(wkdir, guanqia, id, df['filename'][i+1]), 'r', encoding='utf-8') as f:
                 text = f.read()
@@ -157,11 +156,27 @@ def tossml(text):
             ET.SubElement(header, 'voice', name=char2voicename.loc[char][0]).text = line
         if line.startswith('[name='):
             char = line.split('"')[1]
-            line = line.split('"')[2]
+            line = line.split('"]')[1]
+            # line delete newline
+            line = line.replace('\n', '')
+            # if line == '......', skip
+            if line == '......':
+                continue
             ET.SubElement(header, 'voice', name=char2voicename.loc[char][0]).text = line
         if line.startswith('[multiline'):
             char = line.split('"')[1]
-            line = line.split('"')[2]
+            line = line.split(']')[1]
+            # line delete newline
+            line = line.replace('\n', '')
+            # if line == '......', skip
+            if line == '......':
+                continue
+            ET.SubElement(header, 'voice', name=char2voicename.loc[char][0]).text = line
+        if line.startswith('[Image]') or line.startswith('[image'):
+            line = line.split(']')[1]
+            # line delete newline
+            line = line.replace('\n', '')
+            char = 'narration'
             ET.SubElement(header, 'voice', name=char2voicename.loc[char][0]).text = line
     # write to file
     tree = ET.ElementTree(header)
@@ -169,11 +184,11 @@ def tossml(text):
 
 # function to convert txt to xml
 def txt2xml(txtfile, xmlfile):
-    import xml.dom.minidom as minidom
     with open(txtfile, 'r', encoding='utf-8') as f:
         tree = tossml(f)
         tree.write(xmlfile, encoding='utf-8', xml_declaration=True)
     # format xml
+    import xml.dom.minidom as minidom
     dom = minidom.parse(xmlfile)
     with open(xmlfile, 'w', encoding='utf-8') as f:
         f.write(dom.toprettyxml(indent='    '))
@@ -205,6 +220,17 @@ if not os.path.exists(os.path.join(wkdir, 'temp', id)):
     os.makedirs(os.path.join(wkdir, 'temp', id))
 shutil.copyfile(os.path.join(wkdir, 'temp', id+'.xml'), os.path.join(wkdir, 'temp', id, id + '.xml'))
 split_file(os.path.join(wkdir, 'temp', id, id+'.xml'))
+
+# 再次清理，每行开头需要为中文字符
+for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
+    if xml.endswith(".txt"):
+        with open(os.path.join(wkdir, 'temp', id, xml), 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        with open(os.path.join(wkdir, 'temp', id, xml), 'w', encoding='utf-8') as f:
+            for line in lines:
+                if re.search(r'[\u4e00-\u9fa5]', line):
+                    f.write(line)
+
 # 转换xml
 for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
     if xml.endswith(".txt"):
@@ -217,6 +243,7 @@ for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
 
 os.remove(os.path.join(wkdir, 'temp', id, id+'.xml'))
 # xml to wav
+'''
 for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
     if xml.endswith(".xml"):
         # if same name wav was already created, skip
@@ -227,5 +254,6 @@ for xml in os.listdir(os.path.join(wkdir, 'temp', id)):
         # wait until wav file is created
         while not os.path.exists(os.path.join(wkdir, 'temp', id, wav)):
             pass
+'''
 # combine all wav files into one in the folder
 # combine_wav(os.path.join(wkdir, 'temp', id), id+'.wav')
